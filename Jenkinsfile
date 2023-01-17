@@ -1,8 +1,8 @@
 pipeline {
     agent {
         node {
-            // https://jenkins.test/computer/(built-in)/configure
-            label 'docker-enabled'
+            // https://jenkins.test/manage/computer/php-runner/configure
+            label 'docker'
         }
     }
 
