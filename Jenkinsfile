@@ -1,51 +1,51 @@
 pipeline {
-    agent {
-        node {
-            // https://jenkins.test/manage/computer/php-runner/configure
-            label 'docker'
-        }
-    }
+    agent none
 
     environment {
-        // https://hub.docker.com/repositories
-        imageName = "widemos/nginx-egibide"
-
-        // https://hub.docker.com/settings/security
-        registryCredential = 'docker-hub'
-
-        publicPort = "80"
+        REPOSITORIO_GIT = 'https://github.com/egibide-ciberseguridad/juego-de-la-vida.git'
+        RAMA_GIT        = 'main'
+        RUTA_CLONADO    = 'src'
+        PROYECTO_MAVEN  = 'Conway'
+        RUTA_JAR        = 'target/*.jar'
     }
 
     stages {
-        stage('Test') {
+        stage('Clonar el repositorio') {
+            agent { label 'maven' }
             steps {
-                sh 'echo Fake test'
-            }
-        }
-
-        stage('Docker Build') {
-            steps {
-                script {
-                    dockerImage = docker.build(imageName, "-f Dockerfile --no-cache .")
+                dir(env.RUTA_CLONADO) {
+                    checkout([$class: 'GitSCM',
+                        branches: [[name: "*/${env.RAMA_GIT}"]],
+                        userRemoteConfigs: [[url: env.REPOSITORIO_GIT]]
+                    ])
                 }
             }
         }
 
-        stage('Docker Push') {
+        stage('Pasar los tests') {
+            agent { label 'maven' }
             steps {
-                script {
-                    // Primer parámetro en blanco -> Docker Hub, si no, URL del registro privado
-                    docker.withRegistry('', registryCredential) {
-                        dockerImage.push('latest')
-                    }
+                dir("${env.RUTA_CLONADO}/${env.PROYECTO_MAVEN}") {
+                    sh 'mvn test'
                 }
             }
         }
 
-        stage('Docker Run') {
+        stage('Empaquetar el ejecutable JAR') {
+            agent { label 'maven' }
             steps {
-                sh "docker rm -f nginx-egibide"
-                sh "docker run -d -p ${publicPort}:80 --name nginx-egibide ${imageName}:latest"
+                dir("${env.RUTA_CLONADO}/${env.PROYECTO_MAVEN}") {
+                    sh 'mvn package'
+                }
+            }
+        }
+
+        stage('Guardar el JAR generado') {
+            agent { label 'maven' }
+            steps {
+                dir("${env.RUTA_CLONADO}/${env.PROYECTO_MAVEN}") {
+                    archiveArtifacts artifacts: env.RUTA_JAR
+                }
             }
         }
     }
